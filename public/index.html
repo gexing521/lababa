@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>一起拉屎吧</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .toilet-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 100px);
+      gap: 20px;
+      margin: 30px;
+    }
+    .toilet-seat {
+      width: 100px;
+      height: 100px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      transition: all 0.3s;
+    }
+    .available { background: #4CAF50; }
+    .occupied { background: #FF5722; }
+    .waiting { background: #FFC107; }
+    .stats {
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚽 一起拉屎吧!</h1>
+  <div class="stats">
+    <div>当前使用中: <span id="using-count">0</span></div>
+    <div>排队等待: <span id="waiting-count">0</span></div>
+    <div id="position-message"></div>
+  </div>
+  <div class="toilet-grid" id="toilet-grid"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let currentSeat = null;
+
+    // 初始化马桶格子
+    function initToilets() {
+      const grid = document.getElementById('toilet-grid');
+      for (let i = 1; i <= 20; i++) {
+        const seat = document.createElement('div');
+        seat.className = 'toilet-seat available';
+        seat.textContent = i;
+        grid.appendChild(seat);
+      }
+    }
+
+    // 更新座位状态
+    function updateSeat(seatNumber, status) {
+      const seats = document.getElementsByClassName('toilet-seat');
+      seats[seatNumber - 1].className = `toilet-seat ${status}`;
+    }
+
+    // 接收服务器状态更新
+    socket.on('statusUpdate', (data) => {
+      const messageEl = document.getElementById('position-message');
+      if (data.status === 'using') {
+        currentSeat = data.seatNumber;
+        messageEl.textContent = `🚽 你正在使用 ${currentSeat} 号马桶`;
+        updateSeat(data.seatNumber, 'occupied');
+      } else {
+        messageEl.textContent = `⏳ 当前排队位置: 第 ${data.position} 位`;
+      }
+    });
+
+    socket.on('statsUpdate', (stats) => {
+      document.getElementById('using-count').textContent = stats.using;
+      document.getElementById('waiting-count').textContent = stats.waiting;
+    });
+
+    // 心跳检测
+    socket.on('heartbeat', () => {
+      socket.emit('heartbeat-ack');
+    });
+
+    // 页面加载初始化
+    window.onload = () => {
+      initToilets();
+      // 防止页面关闭
+      window.addEventListener('beforeunload', () => {
+        if (currentSeat) {
+          socket.emit('manual-disconnect');
+        }
+      });
+    };
+  </script>
+</body>
+</html>
