@@ -3,13 +3,14 @@ const { createServer } = require('node:http');
 const { Server } = require('socket.io');
 
 const MAX_OCCUPANCY = 20;
-const PORT = 3000;
+const PORT = 3001;
 
 class ToiletManager {
   constructor() {
     this.occupied = new Set();
     this.waitingQueue = [];
     this.userMap = new Map();
+    this.currentUser = null;
   }
 
   assignSeat(socketId) {
@@ -21,6 +22,7 @@ class ToiletManager {
     const seatNumber = this.findAvailableSeat();
     this.occupied.add(seatNumber);
     this.userMap.set(socketId, seatNumber);
+    this.currentUser = socketId;
     return { status: 'using', seatNumber };
   }
 
@@ -80,10 +82,13 @@ io.on('connection', (socket) => {
   }, 5000);
 
   // 断开处理
-  socket.on('disconnect', () => {
-    clearInterval(heartbeat);
+  socket.on('manual-disconnect', () => {
     toiletManager.releaseSeat(socket.id);
     io.emit('statsUpdate', toiletManager.getStats());
+  });
+
+  socket.on('disconnect', () => {
+    clearInterval(heartbeat);
   });
 });
 
